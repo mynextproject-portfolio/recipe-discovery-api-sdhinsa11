@@ -74,7 +74,7 @@ def get_recipe(recipe_id: int):
 @app.post("/recipes", response_model=Recipe, status_code=status.HTTP_201_CREATED)
 def create_recipe(recipe: RecipeCreate):
     global next_id
-    new_recipe = recipe.dict()
+    new_recipe = recipe.model_dump()
     new_recipe["id"] = next_id
     recipes.append(new_recipe)
     next_id += 1
@@ -84,7 +84,7 @@ def create_recipe(recipe: RecipeCreate):
 def update_recipe(recipe_id: int, updated_recipe: RecipeCreate):
     for index, recipe in enumerate(recipes):
         if recipe["id"] == recipe_id:
-            updated_data = updated_recipe.dict()
+            updated_data = updated_recipe.model_dump()
             updated_data["id"] = recipe_id
             recipes[index] = updated_data
             return updated_data
