@@ -48,9 +48,19 @@ next_id = 3
 
 # --- Endpoints ---
 
-@app.get("/recipes", response_model=List[Recipe])
+@app.get("/recipes", response_model=List[Recipe]) # Response model ensures the correct format of the 
 def get_recipes():
     return recipes
+
+@app.get("/recipes/search", response_model=List[Recipe]) # FastAPI will automatically convert it to HTTP 200 status code
+def search_recipes(q: str=""):
+    if not q:
+        return []
+    matching_recipes = []
+    for recipe in recipes:
+        if q.lower() in recipe["title"].lower():
+            matching_recipes.append(recipe)
+    return matching_recipes
 
 # Second recipe endpoint
 @app.get("/recipes/{recipe_id}",  response_model=Recipe)
@@ -59,6 +69,10 @@ def get_recipe(recipe_id: int):
         if recipe["id"] == recipe_id:
             return recipe
     raise HTTPException(status_code=404, detail="Recipe not found")
+
+
+
+
 
 @app.post("/recipes", response_model=Recipe, status_code=status.HTTP_201_CREATED)
 def create_recipe(recipe: RecipeCreate):
