@@ -71,9 +71,6 @@ def get_recipe(recipe_id: int):
     raise HTTPException(status_code=404, detail="Recipe not found")
 
 
-
-
-
 @app.post("/recipes", response_model=Recipe, status_code=status.HTTP_201_CREATED)
 def create_recipe(recipe: RecipeCreate):
     global next_id
