@@ -1,0 +1,20 @@
+[
+  {
+    "id": 1,
+    "name": "Spaghetti Bolognese",
+    "ingredients": ["spaghetti", "ground beef", "tomato sauce", "onion", "garlic"],
+    "instructions": "Cook pasta. Brown beef with onion and garlic. Add tomato sauce. Combine."
+  },
+  {
+    "id": 2,
+    "name": "Chicken Curry",
+    "ingredients": ["chicken", "curry powder", "coconut milk", "onion", "garlic"],
+    "instructions": "Cook chicken. Add onion and garlic. Stir in curry powder and coconut milk. Simmer."
+  },
+  {
+    "id": 3,
+    "name": "Pancakes",
+    "ingredients": ["flour", "milk", "egg", "sugar", "butter"],
+    "instructions": "Mix ingredients into batter. Cook on skillet until golden brown."
+  }
+]

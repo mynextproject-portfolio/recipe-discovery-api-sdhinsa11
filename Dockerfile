@@ -11,7 +11,7 @@ RUN pip install fastapi uvicorn
 COPY main.py .
 
 # Expose port 80 for HTTP traffic
-EXPOSE 80
+EXPOSE 8000
 
 # Run the FastAPI app with Uvicorn
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "80"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
