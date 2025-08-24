@@ -48,7 +48,7 @@ next_id = 3
 
 # --- Endpoints ---
 
-@app.get("/recipes", response_model=List[Recipe])
+@app.get("/recipes", response_model=List[Recipe]) # make sure to return data in the correct format (List of the Recipes)
 def get_recipes():
     return recipes
 
@@ -60,7 +60,10 @@ def get_recipe(recipe_id: int):
             return recipe
     raise HTTPException(status_code=404, detail="Recipe not found")
 
-@app.post("/recipes", response_model=Recipe, status_code=status.HTTP_201_CREATED)
+# To test you need to use curl and open another terminal and type the command:
+    #  curl -X POST "http://localhost:8000/recipes" -H "Content-Type: application/json" -d '{"title":"New Recipe","ingredients":["ingredient1","ingredient2"],"steps":["step1","step2"],"prepTime":"10 minutes","cookTime":"20 minutes","difficulty":"Easy","cuisine":"American"}'
+# Use post to create a new recipe
+@app.post("/recipes", response_model=Recipe, status_code=status.HTTP_201_CREATED) # sets the status to 201 (which is created)
 def create_recipe(recipe: RecipeCreate):
     global next_id
     new_recipe = recipe.dict()
@@ -69,6 +72,9 @@ def create_recipe(recipe: RecipeCreate):
     next_id += 1
     return new_recipe
 
+# To test you need to use curl and open another terminal and type the command:
+    #  curl -X PUT "http://localhost:8000/recipes/1" -H "Content-Type: application/json" -d '{"title":"Updated Recipe","ingredients":["ingredient1","ingredient2"],"steps":["step1","step2"],"prepTime":"10 minutes","cookTime":"20 minutes","difficulty":"Easy","cuisine":"American"}'
+# Use put to update a recipe
 @app.put("/recipes/{recipe_id}", response_model=Recipe)
 def update_recipe(recipe_id: int, updated_recipe: RecipeCreate):
     for index, recipe in enumerate(recipes):
@@ -79,6 +85,9 @@ def update_recipe(recipe_id: int, updated_recipe: RecipeCreate):
             return updated_data
     raise HTTPException(status_code=404, detail="Recipe not found")
 
+# To test you need to use curl and open another terminal and type the command:
+    #  curl -X DELETE "http://localhost:8000/recipes/1"
+# Use delete to remove a recipe
 @app.delete("/recipes/{recipe_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_recipe(recipe_id: int):
     for index, recipe in enumerate(recipes):
