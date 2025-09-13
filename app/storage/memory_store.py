@@ -1,6 +1,7 @@
 from typing import List, Dict, Optional
+from app.storage.abstract import RecipeStorageInterface
 
-class RecipeStore:
+class MemoryRecipeStore(RecipeStorageInterface):
     def __init__(self):
         self.recipes: List[Dict] = [
             {
@@ -57,6 +58,3 @@ class RecipeStore:
         if not query:
             return []
         return [r for r in self.recipes if query.lower() in r["title"].lower()]
-
-# Global instance
-recipe_store = RecipeStore()
