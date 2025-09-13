@@ -1,8 +1,11 @@
 import pytest
+import os
+import tempfile
 from fastapi.testclient import TestClient
 from app.main import app
 from app.dependencies import get_recipe_storage
 from app.storage.memory_store import MemoryRecipeStore
+from app.storage.sqlite_store import SQLiteRecipeStore
 
 # Create a fresh client for each test
 @pytest.fixture
@@ -12,8 +15,10 @@ def client():
     # Clear any existing cache first
     get_recipe_storage.cache_clear()
     
-    # Create a single storage instance for this test
-    test_storage = MemoryRecipeStore()
+    # Create a temporary SQLite database for each test to prove SQLite works
+    # But you can also use MemoryRecipeStore() for faster tests
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as temp_db:
+        test_storage = SQLiteRecipeStore(temp_db.name)
     
     def get_test_recipe_storage():
         """Return the same storage instance for all requests in this test"""
@@ -29,6 +34,12 @@ def client():
     app.dependency_overrides.clear()
     # Clear cache again to ensure fresh storage for next test
     get_recipe_storage.cache_clear()
+    
+    # Clean up the temporary database file
+    try:
+        os.unlink(temp_db.name)
+    except:
+        pass
 
 def test_ping_endpoint(client):
     """Test the health check endpoint"""
