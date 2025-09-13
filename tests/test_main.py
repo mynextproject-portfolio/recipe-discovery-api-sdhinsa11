@@ -1,16 +1,42 @@
 import pytest
 from fastapi.testclient import TestClient
 from app.main import app
+from app.dependencies import get_recipe_storage
+from app.storage.memory_store import MemoryRecipeStore
 
-client = TestClient(app)
+# Create a fresh client for each test
+@pytest.fixture
+def client():
+    """Create a fresh TestClient with isolated storage for each test"""
+    
+    # Clear any existing cache first
+    get_recipe_storage.cache_clear()
+    
+    # Create a single storage instance for this test
+    test_storage = MemoryRecipeStore()
+    
+    def get_test_recipe_storage():
+        """Return the same storage instance for all requests in this test"""
+        return test_storage
+    
+    # Override the dependency for this test
+    app.dependency_overrides[get_recipe_storage] = get_test_recipe_storage
+    
+    with TestClient(app) as test_client:
+        yield test_client
+    
+    # Clean up after test
+    app.dependency_overrides.clear()
+    # Clear cache again to ensure fresh storage for next test
+    get_recipe_storage.cache_clear()
 
-def test_ping_endpoint():
+def test_ping_endpoint(client):
     """Test the health check endpoint"""
     response = client.get("/ping")
     assert response.status_code == 200
     assert response.json() == "pong"
 
-def test_get_all_recipes():
+def test_get_all_recipes(client):
     """Test getting all recipes"""
     response = client.get("/recipes")
     assert response.status_code == 200
@@ -19,7 +45,7 @@ def test_get_all_recipes():
     assert len(data) >= 2  # We have 2 sample recipes
     assert data[0]["title"] == "Spaghetti Carbonara"
 
-def test_get_recipe_by_id():
+def test_get_recipe_by_id(client):
     """Test getting a specific recipe by ID"""
     response = client.get("/recipes/1")
     assert response.status_code == 200
@@ -28,13 +54,13 @@ def test_get_recipe_by_id():
     assert data["title"] == "Spaghetti Carbonara"
     assert data["cuisine"] == "Italian"
 
-def test_get_recipe_not_found():
+def test_get_recipe_not_found(client):
     """Test getting a non-existent recipe"""
     response = client.get("/recipes/999")
     assert response.status_code == 404
     assert response.json()["detail"] == "Recipe not found"
 
-def test_create_recipe():
+def test_create_recipe(client):
     """Test creating a new recipe"""
     new_recipe = {
         "title": "Test Pancakes",
@@ -53,7 +79,7 @@ def test_create_recipe():
     assert "id" in data
     assert data["difficulty"] == "Easy"
 
-def test_update_recipe():
+def test_update_recipe(client):
     """Test updating an existing recipe"""
     updated_recipe = {
         "title": "Updated Carbonara",
@@ -72,7 +98,7 @@ def test_update_recipe():
     assert data["id"] == 1
     assert data["prepTime"] == "8 minutes"
 
-def test_update_recipe_not_found():
+def test_update_recipe_not_found(client):
     """Test updating a non-existent recipe"""
     updated_recipe = {
         "title": "Does Not Exist",
@@ -87,8 +113,14 @@ def test_update_recipe_not_found():
     response = client.put("/recipes/999", json=updated_recipe)
     assert response.status_code == 404
 
-def test_delete_recipe():
+def test_delete_recipe(client):
     """Test deleting a recipe"""
+    # First, verify recipe 2 exists
+    response = client.get("/recipes/2")
+    assert response.status_code == 200
+    assert response.json()["id"] == 2
+    
+    # Delete recipe 2
     response = client.delete("/recipes/2")
     assert response.status_code == 204
     
@@ -96,7 +128,7 @@ def test_delete_recipe():
     response = client.get("/recipes/2")
     assert response.status_code == 404
 
-def test_search_recipes():
+def test_search_recipes(client):
     """Test searching recipes by title"""
     # Search for 'pasta' (should find Carbonara)
     response = client.get("/recipes/search?q=pasta")
@@ -111,14 +143,14 @@ def test_search_recipes():
     assert len(data) >= 1
     assert any("Carbonara" in recipe["title"] for recipe in data)
 
-def test_search_no_results():
+def test_search_no_results(client):
     """Test searching with no matches"""
     response = client.get("/recipes/search?q=nonexistent")
     assert response.status_code == 200
     data = response.json()
     assert data == []
 
-def test_search_empty_query():
+def test_search_empty_query(client):
     """Test searching with empty query"""
     response = client.get("/recipes/search?q=")
     assert response.status_code == 200
@@ -131,7 +163,7 @@ def test_search_empty_query():
     data = response.json()
     assert data == []
 
-def test_happy_path_crud_cycle():
+def test_happy_path_crud_cycle(client):
     """Test the complete CRUD + search cycle end-to-end"""
     
     # 1. Create a new recipe
