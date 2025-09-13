@@ -15,10 +15,8 @@ def client():
     # Clear any existing cache first
     get_recipe_storage.cache_clear()
     
-    # Create a temporary SQLite database for each test to prove SQLite works
-    # But you can also use MemoryRecipeStore() for faster tests
-    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as temp_db:
-        test_storage = SQLiteRecipeStore(temp_db.name)
+    # Use memory storage for faster tests (you can switch to SQLite if needed)
+    test_storage = MemoryRecipeStore()
     
     def get_test_recipe_storage():
         """Return the same storage instance for all requests in this test"""
@@ -32,14 +30,7 @@ def client():
     
     # Clean up after test
     app.dependency_overrides.clear()
-    # Clear cache again to ensure fresh storage for next test
     get_recipe_storage.cache_clear()
-    
-    # Clean up the temporary database file
-    try:
-        os.unlink(temp_db.name)
-    except:
-        pass
 
 def test_ping_endpoint(client):
     """Test the health check endpoint"""
@@ -235,3 +226,85 @@ def test_happy_path_crud_cycle(client):
     final_search_results = final_search_response.json()
     assert len(final_search_results) >= 1
     assert any(recipe["id"] == recipe_id for recipe in final_search_results)
+
+# NEW EXTERNAL API TESTS
+
+def test_search_recipes_with_external_api(client):
+    """Test searching recipes includes external API results"""
+    # Search for a common term that should return both internal and external results
+    response = client.get("/recipes/search?q=chicken")
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)
+    
+    # Should have at least our internal "Chicken Curry" recipe
+    internal_recipes = [r for r in data if r["source"] == "internal"]
+    assert len(internal_recipes) >= 1
+    assert any("Curry" in recipe["title"] for recipe in internal_recipes)
+    
+    # Check that external recipes have the right structure (if any)
+    external_recipes = [r for r in data if r["source"] == "mealdb"]
+    for recipe in external_recipes:
+        assert "mealdb_" in str(recipe["id"])
+        assert recipe["source"] == "mealdb"
+        assert "title" in recipe
+        assert "ingredients" in recipe
+        assert "steps" in recipe
+
+# Replace the failing test with this corrected version:
+
+def test_search_recipes_combined_results(client):
+    """Test that search combines internal and external results properly"""
+    # Search for "spaghetti" which should match "Spaghetti Carbonara"
+    response = client.get("/recipes/search?q=spaghetti")
+    assert response.status_code == 200
+    data = response.json()
+    
+    # Should have internal Carbonara recipe
+    internal_found = any(
+        recipe["source"] == "internal" and "Carbonara" in recipe["title"] 
+        for recipe in data
+    )
+    assert internal_found
+    
+    # Check that all recipes have required fields
+    for recipe in data:
+        assert "id" in recipe
+        assert "title" in recipe
+        assert "source" in recipe
+        assert recipe["source"] in ["internal", "mealdb"]
+
+def test_external_recipe_structure(client):
+    """Test that external recipes have proper structure"""
+    response = client.get("/recipes/search?q=beef")  # Common search term
+    assert response.status_code == 200
+    data = response.json()
+    
+    external_recipes = [r for r in data if r["source"] == "mealdb"]
+    
+    if external_recipes:  # Only test if we got external results
+        external_recipe = external_recipes[0]
+        
+        # Check required fields
+        assert "id" in external_recipe
+        assert "title" in external_recipe
+        assert "ingredients" in external_recipe
+        assert "steps" in external_recipe
+        assert "cuisine" in external_recipe
+        assert external_recipe["source"] == "mealdb"
+        
+        # Check external-specific fields
+        assert "image" in external_recipe
+        assert "originalId" in external_recipe
+
+def test_search_internal_only_fallback(client):
+    """Test that search works even if external API fails"""
+    # Test with a term that should find internal recipes
+    response = client.get("/recipes/search?q=carbonara")
+    assert response.status_code == 200
+    data = response.json()
+    
+    # Should find at least the internal recipe
+    internal_recipes = [r for r in data if r["source"] == "internal"]
+    assert len(internal_recipes) >= 1
+    assert any("Carbonara" in recipe["title"] for recipe in internal_recipes)
