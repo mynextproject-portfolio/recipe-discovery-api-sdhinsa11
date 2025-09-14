@@ -1,22 +1,33 @@
 import httpx
 from typing import List, Dict, Optional
 import asyncio
+from app.services.cache_service import CacheService
 
 class MealDBService:
-    """Service for fetching recipes from TheMealDB API"""
+    """Service for fetching recipes from TheMealDB API with Redis caching"""
     
     BASE_URL = "https://www.themealdb.com/api/json/v1/1"
     
-    @staticmethod
-    async def search_meals(query: str) -> List[Dict]:
-        """Search meals by name from TheMealDB API"""
+    def __init__(self):
+        self.cache = CacheService()
+    
+    async def search_meals(self, query: str) -> List[Dict]:
+        """Search meals by name from TheMealDB API with caching"""
         if not query:
             return []
+        
+        # Check cache first
+        cached_results = self.cache.get_mealdb_results(query)
+        if cached_results is not None:
+            print(f"Cache HIT for query: {query}")
+            return cached_results
+        
+        print(f"Cache MISS for query: {query}")
         
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(
-                    f"{MealDBService.BASE_URL}/search.php",
+                    f"{self.BASE_URL}/search.php",
                     params={"s": query},
                     timeout=5.0
                 )
@@ -24,6 +35,8 @@ class MealDBService:
                 data = response.json()
                 
                 if not data or not data.get("meals"):
+                    # Cache empty results too (to avoid repeated API calls)
+                    self.cache.set_mealdb_results(query, [])
                     return []
                 
                 # Convert MealDB format to our internal format
@@ -60,15 +73,18 @@ class MealDBService:
                     }
                     recipes.append(recipe)
                 
+                # Cache the results
+                self.cache.set_mealdb_results(query, recipes)
                 return recipes
                 
         except Exception as e:
             # Log the error in production, but don't fail the search
             print(f"Error fetching from MealDB: {e}")
-            return []
+            # Try to return cached results if API fails
+            cached_results = self.cache.get_mealdb_results(query)
+            return cached_results if cached_results is not None else []
     
-    @staticmethod
-    def search_meals_sync(query: str) -> List[Dict]:
+    def search_meals_sync(self, query: str) -> List[Dict]:
         """Synchronous wrapper for async search"""
         try:
             loop = asyncio.get_event_loop()
@@ -76,4 +92,12 @@ class MealDBService:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
         
-        return loop.run_until_complete(MealDBService.search_meals(query))
+        return loop.run_until_complete(self.search_meals(query))
+    
+    def clear_cache(self) -> bool:
+        """Clear all cached MealDB results"""
+        return self.cache.clear_mealdb_cache()
+    
+    def get_cache_stats(self) -> Dict:
+        """Get cache statistics"""
+        return self.cache.get_cache_stats()
