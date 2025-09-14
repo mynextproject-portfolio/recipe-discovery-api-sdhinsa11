@@ -6,6 +6,8 @@ from app.main import app
 from app.dependencies import get_recipe_storage
 from app.storage.memory_store import MemoryRecipeStore
 from app.storage.sqlite_store import SQLiteRecipeStore
+from app.services.mealdb_service import MealDBService
+
 
 # Create a fresh client for each test
 @pytest.fixture
@@ -15,7 +17,14 @@ def client():
     # Clear any existing cache first
     get_recipe_storage.cache_clear()
     
-    # Use memory storage for faster tests (you can switch to SQLite if needed)
+    # Clear MealDB cache for clean tests
+    try:
+        service = MealDBService()
+        service.clear_cache()
+    except:
+        pass  # Redis might not be available during testing
+    
+    # Use memory storage for faster tests
     test_storage = MemoryRecipeStore()
     
     def get_test_recipe_storage():
@@ -308,3 +317,54 @@ def test_search_internal_only_fallback(client):
     internal_recipes = [r for r in data if r["source"] == "internal"]
     assert len(internal_recipes) >= 1
     assert any("Carbonara" in recipe["title"] for recipe in internal_recipes)
+
+# Add new cache-specific tests
+def test_cache_endpoints(client):
+    """Test cache management endpoints"""
+    # Test cache stats
+    response = client.get("/admin/cache/stats")
+    assert response.status_code == 200
+    stats = response.json()
+    
+    # Test should work whether Redis is connected or not
+    if stats.get("redis_connected"):
+        # If Redis is connected, check for expected fields
+        assert "cached_queries" in stats
+        assert "redis_url" in stats
+    else:
+        # If Redis is not connected, check for error field
+        assert "error" in stats
+        assert stats["redis_connected"] is False
+    
+    # Test cache health
+    response = client.get("/admin/cache/health")
+    assert response.status_code == 200
+    health = response.json()
+    assert "healthy" in health
+    
+    # Test cache clear - should not fail even if Redis is not connected
+    response = client.delete("/admin/cache/clear")
+    assert response.status_code == 200
+    result = response.json()
+    assert "success" in result
+
+def test_search_caching_behavior(client):
+    """Test that search results work with or without caching"""
+    # First search - should work regardless of cache
+    response1 = client.get("/recipes/search?q=chicken")
+    assert response1.status_code == 200
+    results1 = response1.json()
+    
+    # Second identical search - should work regardless of cache
+    response2 = client.get("/recipes/search?q=chicken")
+    assert response2.status_code == 200
+    results2 = response2.json()
+    
+    # Results should be consistent (but we can't guarantee they're identical 
+    # if external API returns different results)
+    assert len(results1) == len(results2) or abs(len(results1) - len(results2)) <= 1
+    
+    # Check that internal recipes are consistent
+    internal_results1 = [r for r in results1 if r["source"] == "internal"]
+    internal_results2 = [r for r in results2 if r["source"] == "internal"]
+    assert internal_results1 == internal_results2

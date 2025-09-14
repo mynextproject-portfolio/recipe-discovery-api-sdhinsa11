@@ -1,11 +1,12 @@
 from fastapi import FastAPI
-from app.routers import health, recipes
+from app.routers import health, recipes, admin
 
 app = FastAPI(title="Recipe Discovery API", version="1.0.0")
 
 # Include routers
 app.include_router(health.router)
 app.include_router(recipes.router)
+app.include_router(admin.router)
 
 
 
